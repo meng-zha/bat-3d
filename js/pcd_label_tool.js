@@ -760,21 +760,15 @@ function updateXPos(newFileIndex, value) {
  * @param label
  */
 function setHighestAvailableTrackId(label) {
-    for (let newTrackId = 0; newTrackId <= annotationObjects.contents[labelTool.currentFileIndex].length; newTrackId++) {
-        let exist = false;
-        for (let i = 0; i < annotationObjects.contents[labelTool.currentFileIndex].length; i++) {
-            if (label === annotationObjects.contents[labelTool.currentFileIndex][i]["class"] && newTrackId === annotationObjects.contents[labelTool.currentFileIndex][i]["trackId"]) {
-                exist = true;
-                break;
+    let highestId = 0;
+    for (let j = 0; j < labelTool.numFrames; j++) {
+        for (let i = 0; i < annotationObjects.contents[j].length; i++) {
+            if (label === annotationObjects.contents[j][i]["class"] && highestId < annotationObjects.contents[j][i]["trackId"]) {
+                highestId = annotationObjects.contents[j][i]["trackId"]
             }
         }
-        if (exist === false) {
-            // track id was not used yet
-            classesBoundingBox[label].nextTrackId = newTrackId;
-            break;
-        }
-        classesBoundingBox[label].nextTrackId = annotationObjects.contents[labelTool.currentFileIndex].length + 1;
     }
+    classesBoundingBox[label].nextTrackId = highestId + 1;
 }
 
 function getSmallestTrackId(classNameToFind) {
@@ -883,10 +877,10 @@ function addBoundingBoxGui(bbox, bboxEndParams) {
 
     folderBoundingBox3DArray.push(bb);
 
-    let minXPos = -150;
-    let maxXPos = 150;
-    let minYPos = -150;
-    let maxYPos = 150;
+    let minXPos = 0;
+    let maxXPos = 30;
+    let minYPos = -15;
+    let maxYPos = 15;
 
     let minZPos;
     let maxZPos;
@@ -923,9 +917,9 @@ function addBoundingBoxGui(bbox, bboxEndParams) {
     folderRotationArray.push(folderRotation);
 
     let folderSize = folderBoundingBox3DArray[insertIndex].addFolder('Size');
-    let cubeWidth = folderSize.add(bbox, 'width').name("width").min(0.3).max(20).step(0.01).listen();
-    let cubeLength = folderSize.add(bbox, 'length').name("length").min(0.3).max(20).step(0.01).listen();
-    let cubeHeight = folderSize.add(bbox, 'height').name("height").min(0.3).max(20).step(0.01).listen();
+    let cubeWidth = folderSize.add(bbox, 'width').name("width").min(0.3).max(5).step(0.01).listen();
+    let cubeLength = folderSize.add(bbox, 'length').name("length").min(0.3).max(7).step(0.01).listen();
+    let cubeHeight = folderSize.add(bbox, 'height').name("height").min(0.3).max(5).step(0.01).listen();
     folderSize.close();
     folderSizeArray.push(folderSize);
 
@@ -992,7 +986,7 @@ function addBoundingBoxGui(bbox, bboxEndParams) {
         }
     });
     cubeWidth.onChange(function (value) {
-        for (let i = 0; i < labelTool.numFrames; i++) {
+        for (let i = labelTool.currentFileIndex; i < labelTool.numFrames; i++) {
             let selectionIndex = getObjectIndexByTrackIdAndClass(bbox.trackId, bbox.class, i);
             if (selectionIndex !== -1) {
                 let newXPos = labelTool.cubeArray[i][selectionIndex].position.x + (value - labelTool.cubeArray[i][selectionIndex].scale.x) * Math.cos(labelTool.cubeArray[i][selectionIndex].rotation.z) / 2;
@@ -1017,7 +1011,7 @@ function addBoundingBoxGui(bbox, bboxEndParams) {
         }
     });
     cubeLength.onChange(function (value) {
-        for (let i = 0; i < labelTool.numFrames; i++) {
+        for (let i = labelTool.currentFileIndex; i < labelTool.numFrames; i++) {
             let selectionIndex = getObjectIndexByTrackIdAndClass(bbox.trackId, bbox.class, i);
             if (selectionIndex !== -1) {
                 let newXPos = labelTool.cubeArray[i][selectionIndex].position.x + (value - labelTool.cubeArray[i][selectionIndex].scale.y) * Math.sin(labelTool.cubeArray[i][selectionIndex].rotation.z) / 2;
@@ -1038,7 +1032,7 @@ function addBoundingBoxGui(bbox, bboxEndParams) {
         }
     });
     cubeHeight.onChange(function (value) {
-        for (let i = 0; i < labelTool.numFrames; i++) {
+        for (let i = labelTool.currentFileIndex; i < labelTool.numFrames; i++) {
             let selectionIndex = getObjectIndexByTrackIdAndClass(bbox.trackId, bbox.class, i);
             if (selectionIndex !== -1) {
                 let newZPos = labelTool.cubeArray[i][selectionIndex].position.z + (value - labelTool.cubeArray[i][selectionIndex].scale.z) / 2;
@@ -1307,25 +1301,42 @@ function getObjectIndexByName(objectName) {
 
 function updateObjectPosition() {
     let objectIndexByTrackId = getObjectIndexByName(labelTool.selectedMesh.name);
+    let bbox = annotationObjects.contents[labelTool.currentFileIndex][objectIndexByTrackId];
+
     annotationObjects.contents[labelTool.currentFileIndex][objectIndexByTrackId]["x"] = labelTool.selectedMesh.position.x;
     annotationObjects.contents[labelTool.currentFileIndex][objectIndexByTrackId]["y"] = labelTool.selectedMesh.position.y;
     annotationObjects.contents[labelTool.currentFileIndex][objectIndexByTrackId]["z"] = labelTool.selectedMesh.position.z;
-    annotationObjects.contents[labelTool.currentFileIndex][objectIndexByTrackId]["width"] = labelTool.selectedMesh.scale.x;
-    annotationObjects.contents[labelTool.currentFileIndex][objectIndexByTrackId]["length"] = labelTool.selectedMesh.scale.y;
-    annotationObjects.contents[labelTool.currentFileIndex][objectIndexByTrackId]["height"] = labelTool.selectedMesh.scale.z;
+    for (let i = labelTool.currentFileIndex; i < labelTool.numFrames; i++) {
+        let selectionIndex = getObjectIndexByTrackIdAndClass(bbox.trackId, bbox.class, i);
+        if (selectionIndex === -1){
+            break;
+        }else {
+            annotationObjects.contents[i][selectionIndex]["width"] = labelTool.selectedMesh.scale.x;
+            annotationObjects.contents[i][selectionIndex]["length"] = labelTool.selectedMesh.scale.y;
+            annotationObjects.contents[i][selectionIndex]["height"] = labelTool.selectedMesh.scale.z;
+        }
+    }
     annotationObjects.contents[labelTool.currentFileIndex][objectIndexByTrackId]["rotationYaw"] = labelTool.selectedMesh.rotation.z;
     annotationObjects.contents[labelTool.currentFileIndex][objectIndexByTrackId]["rotationPitch"] = labelTool.selectedMesh.rotation.x;
     annotationObjects.contents[labelTool.currentFileIndex][objectIndexByTrackId]["rotationRoll"] = labelTool.selectedMesh.rotation.y;
     // update cube array
-    labelTool.cubeArray[labelTool.currentFileIndex][objectIndexByTrackId]["x"] = labelTool.selectedMesh.position.x;
-    labelTool.cubeArray[labelTool.currentFileIndex][objectIndexByTrackId]["y"] = labelTool.selectedMesh.position.y;
-    labelTool.cubeArray[labelTool.currentFileIndex][objectIndexByTrackId]["z"] = labelTool.selectedMesh.position.z;
-    labelTool.cubeArray[labelTool.currentFileIndex][objectIndexByTrackId]["width"] = labelTool.selectedMesh.scale.x;
-    labelTool.cubeArray[labelTool.currentFileIndex][objectIndexByTrackId]["length"] = labelTool.selectedMesh.scale.y;
-    labelTool.cubeArray[labelTool.currentFileIndex][objectIndexByTrackId]["height"] = labelTool.selectedMesh.scale.z;
-    labelTool.cubeArray[labelTool.currentFileIndex][objectIndexByTrackId]["rotationYaw"] = labelTool.selectedMesh.rotation.z;
-    labelTool.cubeArray[labelTool.currentFileIndex][objectIndexByTrackId]["rotationPitch"] = labelTool.selectedMesh.rotation.x;
-    labelTool.cubeArray[labelTool.currentFileIndex][objectIndexByTrackId]["rotationRoll"] = labelTool.selectedMesh.rotation.y;
+    labelTool.cubeArray[labelTool.currentFileIndex][objectIndexByTrackId].position.x = labelTool.selectedMesh.position.x;
+    labelTool.cubeArray[labelTool.currentFileIndex][objectIndexByTrackId].position.y = labelTool.selectedMesh.position.y;
+    labelTool.cubeArray[labelTool.currentFileIndex][objectIndexByTrackId].position.z = labelTool.selectedMesh.position.z;
+
+    for (let i = labelTool.currentFileIndex; i < labelTool.numFrames; i++) {
+        let selectionIndex = getObjectIndexByTrackIdAndClass(bbox.trackId, bbox.class, i);
+        if (selectionIndex === -1){
+            break;
+        }else {
+            labelTool.cubeArray[i][selectionIndex].scale.x = labelTool.selectedMesh.scale.x;
+            labelTool.cubeArray[i][selectionIndex].scale.y = labelTool.selectedMesh.scale.y;
+            labelTool.cubeArray[i][selectionIndex].scale.z = labelTool.selectedMesh.scale.z;
+        }
+    }
+    labelTool.cubeArray[labelTool.currentFileIndex][objectIndexByTrackId].rotation.z = labelTool.selectedMesh.rotation.z;
+    labelTool.cubeArray[labelTool.currentFileIndex][objectIndexByTrackId].rotation.x = labelTool.selectedMesh.rotation.x;
+    labelTool.cubeArray[labelTool.currentFileIndex][objectIndexByTrackId].rotation.y = labelTool.selectedMesh.rotation.y;
 
     if (interpolationMode === true && labelTool.selectedMesh !== undefined) {
         // let selectionIndex = annotationObjects.getSelectionIndex();
@@ -2360,7 +2371,6 @@ function enableInterpolationBtn() {
 }
 
 function mouseUpLogic(ev) {
-    dragControls = false;
     // check if scene contains transform controls
     useTransformControls = false;
     for (let i = 0; i < scene.children.length; i++) {
@@ -2385,10 +2395,10 @@ function mouseUpLogic(ev) {
             ray.setFromCamera(mouse, currentCamera);
         }
         let clickedObjects;
-        if (birdsEyeViewFlag === true) {
-            clickedObjects = ray.intersectObjects(clickedPlaneArray);
-        } else {
+        if (dragControls === false) {
             clickedObjects = ray.intersectObjects(labelTool.cubeArray[labelTool.currentFileIndex]);
+        } else {
+            clickedObjects = [labelTool.cubeArray[labelTool.currentFileIndex][clickedObjectIndex]];
         }
 
 
@@ -2443,7 +2453,6 @@ function mouseUpLogic(ev) {
 
             let obj = annotationObjects.contents[labelTool.currentFileIndex][clickedObjectIndex];
             showHelperViews(obj["x"], obj["y"], obj["z"]);
-
             // enable interpolate button if interpolation mode is activated AND selected object is the same as interpolated object
             if (interpolationMode === true) {
                 if (annotationObjects.contents[labelTool.currentFileIndex][clickedObjectIndex]["interpolationStartFileIndex"] !== -1 && annotationObjects.contents[labelTool.currentFileIndex][clickedObjectIndex]["interpolationStartFileIndex"] !== labelTool.currentFileIndex) {
@@ -2707,6 +2716,7 @@ function mouseUpLogic(ev) {
         }
 
     }
+    dragControls = false;
 }
 
 function handleMouseUp(ev) {
@@ -2736,7 +2746,17 @@ function mouseDownLogic(ev) {
         mouse.y = mouseDown.y;
         ray.setFromCamera(mouse, currentCamera);
     }
-    let clickedObjects = ray.intersectObjects(labelTool.cubeArray[labelTool.currentFileIndex]);
+    let clickedObjects;
+    if (dragControls === false){
+        clickedObjects = ray.intersectObjects(labelTool.cubeArray[labelTool.currentFileIndex]);
+        if(clickedObjects.length > 0) {
+            clickedObjectIndex = labelTool.cubeArray[labelTool.currentFileIndex].indexOf(clickedObjects[0].object);
+        }else{
+            clickedObjectIndex = -1;
+        }
+    } else{
+        clickedObjectIndex = labelTool.cubeArray[labelTool.currentFileIndex].indexOf(labelTool.selectedMesh);
+    }
     let geometry = new THREE.PlaneGeometry(2 * gridSize, 2 * gridSize);
     let material = new THREE.MeshBasicMaterial({
         color: 0x000000,
@@ -2746,62 +2766,62 @@ function mouseDownLogic(ev) {
         side: THREE.DoubleSide
     });
     let groundPlane = new THREE.Mesh(geometry, material);
-    if (clickedObjects.length > 0) {
+    if (dragControls === false) {
+        if (clickedObjects.length > 0) {
 
-        if (ev.button === 0) {
-            clickedObjectIndex = labelTool.cubeArray[labelTool.currentFileIndex].indexOf(clickedObjects[0].object);
-            clickFlag = true;
-            clickedPoint = clickedObjects[0].point;
-            clickedCube = labelTool.cubeArray[labelTool.currentFileIndex][clickedObjectIndex];
+            if (ev.button === 0) {
+                clickFlag = true;
+                clickedPoint = clickedObjects[0].point;
 
-            if (birdsEyeViewFlag === true) {
-                groundPlane.position.x = clickedPoint.x;
-                groundPlane.position.y = clickedPoint.y;
-                groundPlane.position.z = -10;//clickedPoint.z;
-                let normal = clickedObjects[0].face;
-                if ([normal.a, normal.b, normal.c].toString() == [6, 3, 2].toString() || [normal.a, normal.b, normal.c].toString() == [7, 6, 2].toString()) {
-                    groundPlane.rotation.x = Math.PI / 2;
-                    groundPlane.rotation.y = labelTool.cubeArray[labelTool.currentFileIndex][clickedObjectIndex].rotation.z;
-                } else if ([normal.a, normal.b, normal.c].toString() == [6, 7, 5].toString() || [normal.a, normal.b, normal.c].toString() == [4, 6, 5].toString()) {
-                    groundPlane.rotation.x = -Math.PI / 2;
-                    groundPlane.rotation.y = -Math.PI / 2 - labelTool.cubeArray[labelTool.currentFileIndex][clickedObjectIndex].rotation.z;
-                } else if ([normal.a, normal.b, normal.c].toString() == [0, 2, 1].toString() || [normal.a, normal.b, normal.c].toString() == [2, 3, 1].toString()) {
-                    groundPlane.rotation.x = Math.PI / 2;
-                    groundPlane.rotation.y = Math.PI / 2 + labelTool.cubeArray[labelTool.currentFileIndex][clickedObjectIndex].rotation.z;
-                } else if ([normal.a, normal.b, normal.c].toString() == [5, 0, 1].toString() || [normal.a, normal.b, normal.c].toString() == [4, 5, 1].toString()) {
-                    groundPlane.rotation.x = -Math.PI / 2;
-                    groundPlane.rotation.y = -labelTool.cubeArray[labelTool.currentFileIndex][clickedObjectIndex].rotation.z;
-                } else if ([normal.a, normal.b, normal.c].toString() == [3, 6, 4].toString() || [normal.a, normal.b, normal.c].toString() == [1, 3, 4].toString()) {
-                    groundPlane.rotation.y = -Math.PI
+                if (birdsEyeViewFlag === true) {
+                    groundPlane.position.x = clickedPoint.x;
+                    groundPlane.position.y = clickedPoint.y;
+                    groundPlane.position.z = -10;//clickedPoint.z;
+                    let normal = clickedObjects[0].face;
+                    if ([normal.a, normal.b, normal.c].toString() == [6, 3, 2].toString() || [normal.a, normal.b, normal.c].toString() == [7, 6, 2].toString()) {
+                        groundPlane.rotation.x = Math.PI / 2;
+                        groundPlane.rotation.y = labelTool.cubeArray[labelTool.currentFileIndex][clickedObjectIndex].rotation.z;
+                    } else if ([normal.a, normal.b, normal.c].toString() == [6, 7, 5].toString() || [normal.a, normal.b, normal.c].toString() == [4, 6, 5].toString()) {
+                        groundPlane.rotation.x = -Math.PI / 2;
+                        groundPlane.rotation.y = -Math.PI / 2 - labelTool.cubeArray[labelTool.currentFileIndex][clickedObjectIndex].rotation.z;
+                    } else if ([normal.a, normal.b, normal.c].toString() == [0, 2, 1].toString() || [normal.a, normal.b, normal.c].toString() == [2, 3, 1].toString()) {
+                        groundPlane.rotation.x = Math.PI / 2;
+                        groundPlane.rotation.y = Math.PI / 2 + labelTool.cubeArray[labelTool.currentFileIndex][clickedObjectIndex].rotation.z;
+                    } else if ([normal.a, normal.b, normal.c].toString() == [5, 0, 1].toString() || [normal.a, normal.b, normal.c].toString() == [4, 5, 1].toString()) {
+                        groundPlane.rotation.x = -Math.PI / 2;
+                        groundPlane.rotation.y = -labelTool.cubeArray[labelTool.currentFileIndex][clickedObjectIndex].rotation.z;
+                    } else if ([normal.a, normal.b, normal.c].toString() == [3, 6, 4].toString() || [normal.a, normal.b, normal.c].toString() == [1, 3, 4].toString()) {
+                        groundPlane.rotation.y = -Math.PI
+                    }
+                    groundPlane.name = "planeObject";
+                    scene.add(groundPlane);
+                    clickedPlaneArray.push(groundPlane);
                 }
-                groundPlane.name = "planeObject";
-                scene.add(groundPlane);
-                clickedPlaneArray.push(groundPlane);
-            }
 
-        } else if (ev.button === 2) {
-            // rightclick
-            clickedObjectIndex = labelTool.cubeArray[labelTool.currentFileIndex].indexOf(clickedObjects[0].object);
-            let bboxClass = annotationObjects.contents[labelTool.currentFileIndex][clickedObjectIndex]["class"];
-            let trackId = annotationObjects.contents[labelTool.currentFileIndex][clickedObjectIndex]["trackId"];
-            deleteObject(bboxClass, trackId, clickedObjectIndex);
-            // move button to left
-            $("#left-btn").css("left", 0);
-        }//end right click
-    } else {
-        for (let i = 0; i < annotationObjects.contents[labelTool.currentFileIndex].length; i++) {
-            $("#tooltip-" + annotationObjects.contents[labelTool.currentFileIndex][i]["class"].charAt(0) + annotationObjects.contents[labelTool.currentFileIndex][i]["trackId"]).show();
-        }
-        if (birdsEyeViewFlag === true) {
-            clickedObjectIndex = -1;
-            groundPlaneArray = [];
-            groundPlane.position.x = 0;
-            groundPlane.position.y = 0;
-            groundPlane.position.z = -10;
-            groundPlaneArray.push(groundPlane);
-            let groundObject = ray.intersectObjects(groundPlaneArray);
-            if (groundObject !== undefined && groundObject[0] !== undefined) {
-                groundPointMouseDown = groundObject[0].point;
+            } else if (ev.button === 2) {
+                // rightclick
+                clickedObjectIndex = labelTool.cubeArray[labelTool.currentFileIndex].indexOf(clickedObjects[0].object);
+                let bboxClass = annotationObjects.contents[labelTool.currentFileIndex][clickedObjectIndex]["class"];
+                let trackId = annotationObjects.contents[labelTool.currentFileIndex][clickedObjectIndex]["trackId"];
+                deleteObject(bboxClass, trackId, clickedObjectIndex);
+                // move button to left
+                $("#left-btn").css("left", 0);
+            }//end right click
+        } else {
+            for (let i = 0; i < annotationObjects.contents[labelTool.currentFileIndex].length; i++) {
+                $("#tooltip-" + annotationObjects.contents[labelTool.currentFileIndex][i]["class"].charAt(0) + annotationObjects.contents[labelTool.currentFileIndex][i]["trackId"]).show();
+            }
+            if (birdsEyeViewFlag === true) {
+                clickedObjectIndex = -1;
+                groundPlaneArray = [];
+                groundPlane.position.x = 0;
+                groundPlane.position.y = 0;
+                groundPlane.position.z = -10;
+                groundPlaneArray.push(groundPlane);
+                let groundObject = ray.intersectObjects(groundPlaneArray);
+                if (groundObject !== undefined && groundObject[0] !== undefined) {
+                    groundPointMouseDown = groundObject[0].point;
+                }
             }
         }
     }
