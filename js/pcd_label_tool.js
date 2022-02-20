@@ -771,35 +771,20 @@ function setHighestAvailableTrackId(label) {
     classesBoundingBox[label].nextTrackId = highestId + 1;
 }
 
-function getSmallestTrackId(classNameToFind) {
+function getSmallestTrackId(bbox) {
     let trackIds = [];
-    for (let i = 0; i < annotationObjects.contents.length; i++) {
-        for (let j = 0; j < annotationObjects.contents[i].length; j++) {
-            let className = annotationObjects.contents[i][j]["class"];
-            if (className === classNameToFind) {
-                let trackId = annotationObjects.contents[i][j]["trackId"];
-                if ($.inArray(trackId, trackIds) === -1) {
-                    trackIds.push(trackId);
-                }
+    let i = labelTool.currentFileIndex;
+    for (let j = 0; j < annotationObjects.contents[i].length; j++) {
+        let className = annotationObjects.contents[i][j]["class"];
+        if (className === bbox.class && annotationObjects.contents[i][j] !== bbox) {
+            let trackId = annotationObjects.contents[i][j]["trackId"];
+            if ($.inArray(trackId, trackIds) === -1) {
+                trackIds.push(trackId);
             }
-
         }
     }
     trackIds.sort();
-    for (let smallestAvailableTrackId = 1; smallestAvailableTrackId <= trackIds[trackIds.length - 1]; smallestAvailableTrackId++) {
-        let exist = false;
-        for (let j = 0; j < trackIds.length; j++) {
-            if (smallestAvailableTrackId === trackIds[j]) {
-                exist = true;
-                break;
-            }
-        }
-        if (exist === false) {
-            return smallestAvailableTrackId;
-        }
-    }
-    // return next highest track id
-    return trackIds[trackIds.length - 1] + 1;
+    return trackIds;
 }
 
 function deleteObject(bboxClass, trackId, labelIndex) {
@@ -872,7 +857,8 @@ function addBoundingBoxGui(bbox, bboxEndParams) {
     if (guiOptions.__folders[bbox.class + ' ' + bbox.trackId] === undefined) {
         bb = guiOptions.addFolder(bbox.class + ' ' + bbox.trackId);
     } else {
-        bb = guiOptions.__folders[bbox.class + ' ' + bbox.trackId];
+        guiOptions.removeFolder(bbox.class + ' ' + bbox.trackId);
+        bb = guiOptions.addFolder(bbox.class + ' ' + bbox.trackId);
     }
 
     folderBoundingBox3DArray.push(bb);
@@ -892,7 +878,6 @@ function addBoundingBoxGui(bbox, bboxEndParams) {
         minZPos = -3;
         maxZPos = 3;
     }
-
 
     let folderPosition = folderBoundingBox3DArray[insertIndex].addFolder('Position');
     let cubeX = folderPosition.add(bbox, 'x').name("x").min(minXPos).max(maxXPos).step(0.01).listen();
@@ -1189,22 +1174,30 @@ function addBoundingBoxGui(bbox, bboxEndParams) {
 
     let textBoxTrackId = folderBoundingBox3DArray[insertIndex].add(bbox, 'trackId').min(0).step(1).name('Track ID');
     textBoxTrackId.onChange(function (value) {
+        let oldTrackId = parseInt(labelTool.cubeArray[labelTool.currentFileIndex][insertIndex].name.substring(6));
         // check validity
         // get smallest available track id for this class (look at all objects within that sequence)
 
-        let minTrackId = getSmallestTrackId(bbox.class);
-        if (value < 1 || value !== minTrackId) {
+        let trackIds = getSmallestTrackId(bbox);
+        if (value < 1 || trackIds.includes(value)) {
+            annotationObjects.contents[labelTool.currentFileIndex][insertIndex]["trackId"] = oldTrackId;
             labelTool.logger.error("You have entered an invalid track ID.");
+            return;
         }
-        labelTool.logger.success("Track ID for class " + bbox.class + " was set to " + minTrackId + ".");
-        value = Math.round(minTrackId);
+        labelTool.logger.success("Track ID for class " + bbox.class + " was set to " + value + ".");
+        // value = Math.round(minTrackId);
         // update cube name
-        labelTool.cubeArray[labelTool.currentFileIndex][insertIndex].name = 'cube-' + bbox.class.charAt(0) + value;
-        annotationObjects.contents[labelTool.currentFileIndex][insertIndex]["trackId"] = value;
         if (labelTool.selectedMesh !== undefined) {
             labelTool.selectedMesh.name = 'cube-' + bbox.class.charAt(0) + value;
         }
-        $("#bounding-box-3d-menu ul").children().eq(insertIndex + numGUIOptions).children().first().children().first().children().first().text(bbox.class + " " + value);
+        for (let i = labelTool.currentFileIndex; i < labelTool.numFrames; i++) {
+            let selectionIndex = getObjectIndexByTrackIdAndClass(oldTrackId, bbox.class, i);
+            if (selectionIndex !== -1) {
+                labelTool.cubeArray[i][selectionIndex].name = 'cube-' + bbox.class.charAt(0) + value;
+                annotationObjects.contents[i][selectionIndex]["trackId"] = value;
+            }
+        }
+        $("#bounding-box-3d-menu ul").children().eq(insertIndex + numGUIOptions +1).children().first().children().first().children().first().text(bbox.class + " " + value);
     });
 
     let labelAttributes = {

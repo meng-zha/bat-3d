@@ -1218,6 +1218,10 @@ let labelTool = {
             }
             guiOptions.removeFolder(annotationObjects.contents[this.currentFileIndex][i]["class"] + ' ' + annotationObjects.contents[this.currentFileIndex][i]["trackId"]);
         }
+        for (let key in guiOptions.__folders)
+        {
+            guiOptions.removeFolder(key);
+        }
         // empty all folder arrays
         folderBoundingBox3DArray = [];
         folderPositionArray = [];
